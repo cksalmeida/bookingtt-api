@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # --- BANCO DE DADOS RELACIONAL ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: bookingtt_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: bookingtt_user
+      POSTGRES_PASSWORD: bookingtt_password
+      POSTGRES_DB: bookingtt_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookingtt_user -d bookingtt_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookingtt_network
+
+  # --- CACHE E LOCKS DISTRIBUÍDOS ---
+  redis:
+    image: redis:7-alpine
+    container_name: bookingtt_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookingtt_network
+
+  # --- SISTEMA DE MENSAGERIA ---
+  rabbitmq:
+    # Usando a versão 'management' para termos a interface visual (UI) no navegador
+    image: rabbitmq:3.12-management-alpine
+    container_name: bookingtt_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: bookingtt_user
+      RABBITMQ_DEFAULT_PASS: bookingtt_password
+    ports:
+      - "5672:5672"   # Porta do protocolo AMQP (onde o NestJS vai conectar)
+      - "15672:15672" # Porta da interface de gerenciamento (UI)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookingtt_network
+
+  # --- APLICAÇÃO NESTJS ---
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookingtt_api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "5555:5555"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgresql://bookingtt_user:bookingtt_password@postgres:5432/bookingtt_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_URL=amqp://bookingtt_user:bookingtt_password@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - bookingtt_network
+    volumes:
+      - .:/usr/src/app
+
+networks:
+  bookingtt_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

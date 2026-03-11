@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------
+// ENUMS (Garantem integridade e segurança no código)
+// ------------------------------------------------------
+enum SeatStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+model Trip {
+  id        String   @id @default(uuid())
+  technicalTripId   String   
+  bus      String   
+  boardingTime DateTime
+  price     Decimal  @db.Decimal(10, 2)
+  
+  seats     Seat[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("trips")
+}
+
+model Seat {
+  id        String     @id @default(uuid())
+  tripId String
+  number    String     
+  status    SeatStatus @default(AVAILABLE)
+
+  trip      Trip       @relation(fields: [tripId], references: [id])
+  reservations Reservation[] 
+
+  @@unique([tripId, number]) 
+  @@map("seats")
+}
+
+model Reservation {
+  id        String            @id @default(uuid())
+  userId    String            
+  tripId    String            
+  seatId    String
+  status    ReservationStatus @default(PENDING)
+  expiresAt DateTime          
+  
+  seat      Seat     @relation(fields: [seatId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reservations")
+}
