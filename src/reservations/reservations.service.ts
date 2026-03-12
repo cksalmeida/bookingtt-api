@@ -25,7 +25,7 @@ export class ReservationsService implements OnModuleInit {
     if (!acquiredLock) {
       throw new ConflictException('Esta poltrona está sendo processada por outro usuário. Tente novamente em instantes.');
     }
-
+    const expirationTimeSeconds = 45;
     let reservationResult;
 
     try {
@@ -36,7 +36,7 @@ export class ReservationsService implements OnModuleInit {
         if (seat.status !== 'AVAILABLE') throw new ConflictException('Esta poltrona já foi reservada ou vendida.');
 
         const expirationTime = new Date();
-        expirationTime.setSeconds(expirationTime.getSeconds() + 30);
+        expirationTime.setSeconds(expirationTime.getSeconds() + expirationTimeSeconds);
 
         const reservation = await tx.reservation.create({
           data: {
@@ -54,7 +54,7 @@ export class ReservationsService implements OnModuleInit {
         });
 
         return {
-          message: 'Poltrona reservada com sucesso! Você tem 30 segundos para pagar.',
+          message: 'Poltrona reservada com sucesso! Você tem 45 segundos para pagar.',
           reservationId: reservation.id,
           expiresAt: reservation.expiresAt,
         };
@@ -64,7 +64,9 @@ export class ReservationsService implements OnModuleInit {
       await this.redis.releaseLock(lockKey);
     }
 
-    await this.rabbitmq.sendToWaitQueue(reservationResult.reservationId);
+    const waitingTimeMs = expirationTimeSeconds * 1000; 
+    
+    await this.rabbitmq.sendToWaitQueue(reservationResult.reservationId, waitingTimeMs);
 
     return reservationResult;
   }
@@ -84,9 +86,7 @@ export class ReservationsService implements OnModuleInit {
           where: { id: reservation.seatId },
           data: { status: 'AVAILABLE' },
         });
-
-        // Marca a reserva como expirada/cancelada
-        // (No schema do Prisma, precisa ver se o seu Enum é CANCELLED ou EXPIRED, vou usar CANCELLED)
+        
         await tx.reservation.update({
           where: { id: reservationId },
           data: { status: 'EXPIRED' }, 

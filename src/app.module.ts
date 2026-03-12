@@ -6,9 +6,10 @@ import { TripsModule } from './trips/trips.module';
 import { RedisModule } from './redis/redis.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
-  imports: [PrismaModule, TripsModule, RedisModule, ReservationsModule, RabbitmqModule],
+  imports: [PrismaModule, TripsModule, RedisModule, ReservationsModule, RabbitmqModule, PaymentsModule],
   controllers: [AppController],
   providers: [AppService],
 })

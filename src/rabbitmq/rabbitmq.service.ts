@@ -36,15 +36,16 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     await this.channel.assertQueue(this.WAIT_QUEUE, {
       durable: true,
       deadLetterExchange: this.EXCHANGE_NAME, 
-      deadLetterRoutingKey: 'reservation.expired', 
-      messageTtl: 30000, 
+      deadLetterRoutingKey: 'reservation.expired',
     });
   }
 
-  async sendToWaitQueue(reservationId: string) {
+  async sendToWaitQueue(reservationId: string, delayInMilliseconds: number) {
     const message = JSON.stringify({ reservationId });
-    this.channel.sendToQueue(this.WAIT_QUEUE, Buffer.from(message));
-    console.log(`⏳ Reserva ${reservationId} enviada para a fila de espera (30s).`);
+    this.channel.sendToQueue(this.WAIT_QUEUE, Buffer.from(message), {
+      expiration: delayInMilliseconds.toString(), 
+    });
+    console.log(`⏳ Reserva ${reservationId} enviada para a fila de espera (${delayInMilliseconds / 1000}s).`);
   }
 
   async consumeExpiredReservations(callback: (reservationId: string) => Promise<void>) {
