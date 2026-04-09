@@ -18,13 +18,34 @@ export class RedisService extends Redis implements OnModuleInit, OnModuleDestroy
     this.disconnect();
   }
 
-  async acquireLock(key: string, ttlMilliseconds: number): Promise<boolean> {
+  async acquireMultipleLocks(keys: string[], ttlMilliseconds: number): Promise<string[]> {
+    const sortedKeys = [...keys].sort();
+    const acquiredKeys: string[] = [];
+
+    for (const key of sortedKeys) {
+      const acquired = await this.acquireLock(key, ttlMilliseconds);
+      if (!acquired) {
+        await this.releaseMultipleLocks(acquiredKeys);
+        return [];
+      }
+      acquiredKeys.push(key)
+    }
+    return acquiredKeys;
+  }
+
+  async releaseMultipleLocks(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      await this.releaseLock(key);
+    }
+  }
+
+  private async acquireLock(key: string, ttlMilliseconds: number): Promise<boolean> {
     const result = await this.set(key, 'LOCKED', 'PX', ttlMilliseconds, 'NX');
     
     return result === 'OK';
   }
 
-  async releaseLock(key: string): Promise<void> {
+  private async releaseLock(key: string): Promise<void> {
     await this.del(key);
   }
 }
