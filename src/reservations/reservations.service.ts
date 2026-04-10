@@ -19,56 +19,64 @@ export class ReservationsService implements OnModuleInit {
   }
 
   async reserveSeat(data: CreateReservationDto) {
-    const lockKey = `lock:seat:${data.seatId}`;
-    const acquiredLock = await this.redis.acquireLock(lockKey, 5000);
+    const lockKeys = data.seatIds.map((id) => `lock:seat:${id}`);
+    const acquiredLocks = await this.redis.acquireMultipleLocks(lockKeys, 5000);
 
-    if (!acquiredLock) {
-      throw new ConflictException('Esta poltrona está sendo processada por outro usuário. Tente novamente em instantes.');
+    if (acquiredLocks.length === 0) {
+      throw new ConflictException('Uma ou mais poltronas estão sendo processadas por outro usuário. Tente novamente em instantes.');
     }
+
     const expirationTimeSeconds = 45;
-    let reservationResult;
+    let reservationResults: { reservationId: string; seatId: string; expiresAt: Date }[];
 
     try {
-      reservationResult = await this.prisma.$transaction(async (tx) => {
-        const seat = await tx.seat.findUnique({ where: { id: data.seatId } });
-        
-        if (!seat) throw new BadRequestException('Poltrona não encontrada.');
-        if (seat.status !== 'AVAILABLE') throw new ConflictException('Esta poltrona já foi reservada ou vendida.');
-
+      reservationResults = await this.prisma.$transaction(async (tx) => {
         const expirationTime = new Date();
         expirationTime.setSeconds(expirationTime.getSeconds() + expirationTimeSeconds);
 
-        const reservation = await tx.reservation.create({
-          data: {
-            userId: data.userId,
-            tripId: data.tripId,
-            seatId: data.seatId,
-            status: 'PENDING',
-            expiresAt: expirationTime,
-          },
-        });
+        const results: { reservationId: string; seatId: string; expiresAt: Date }[] = [];
 
-        await tx.seat.update({
-          where: { id: data.seatId },
-          data: { status: 'RESERVED' },
-        });
+        for (const seatId of data.seatIds) {
+          const seat = await tx.seat.findUnique({ where: { id: seatId } });
 
-        return {
-          message: 'Poltrona reservada com sucesso! Você tem 45 segundos para pagar.',
-          reservationId: reservation.id,
-          expiresAt: reservation.expiresAt,
-        };
+          if (!seat) throw new BadRequestException(`Poltrona ${seatId} não encontrada.`);
+          if (seat.status !== 'AVAILABLE') throw new ConflictException(`A poltrona ${seat.number} já foi reservada ou vendida.`);
+
+          const reservation = await tx.reservation.create({
+            data: {
+              userId: data.userId,
+              tripId: data.tripId,
+              seatId,
+              status: 'PENDING',
+              expiresAt: expirationTime,
+            },
+          });
+
+          await tx.seat.update({
+            where: { id: seatId },
+            data: { status: 'RESERVED' },
+          });
+
+          results.push({ reservationId: reservation.id, seatId, expiresAt: reservation.expiresAt });
+        }
+
+        return results;
       });
 
     } finally {
-      await this.redis.releaseLock(lockKey);
+      await this.redis.releaseMultipleLocks(lockKeys);
     }
 
-    const waitingTimeMs = expirationTimeSeconds * 1000; 
-    
-    await this.rabbitmq.sendToWaitQueue(reservationResult.reservationId, waitingTimeMs);
+    const waitingTimeMs = expirationTimeSeconds * 1000;
 
-    return reservationResult;
+    for (const r of reservationResults) {
+      await this.rabbitmq.sendToWaitQueue(r.reservationId, waitingTimeMs);
+    }
+
+    return {
+      message: `${reservationResults.length} poltrona(s) reservada(s) com sucesso! Você tem 45 segundos para pagar.`,
+      reservations: reservationResults,
+    };
   }
 
   async cancelUnpaidReservation(reservationId: string) {
