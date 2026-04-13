@@ -154,6 +154,78 @@ describe('ReservationsService', () => {
     });
   });
 
+  // ----------------------------------------------------------------
+  // cancelReservation
+  // ----------------------------------------------------------------
+
+  describe('cancelReservation', () => {
+    it('deve cancelar a reserva e liberar a poltrona quando status é PENDING', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue({
+        id: 'res-1',
+        seatId: 'seat-1',
+        status: 'PENDING',
+      });
+      mockPrisma.seat.update.mockResolvedValue({});
+      mockPrisma.reservation.update.mockResolvedValue({});
+
+      const result = await service.cancelReservation('res-1');
+
+      expect(result.message).toBeDefined();
+      expect(mockPrisma.seat.update).toHaveBeenCalledWith({
+        where: { id: 'seat-1' },
+        data: { status: 'AVAILABLE' },
+      });
+      expect(mockPrisma.reservation.update).toHaveBeenCalledWith({
+        where: { id: 'res-1' },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    it('deve lançar NotFoundException quando a reserva não existe', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue(null);
+
+      await expect(service.cancelReservation('res-inexistente')).rejects.toThrow(NotFoundException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('deve lançar BadRequestException quando a reserva já está CONFIRMED', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue({
+        id: 'res-1',
+        seatId: 'seat-1',
+        status: 'CONFIRMED',
+      });
+
+      await expect(service.cancelReservation('res-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('deve lançar BadRequestException quando a reserva já está CANCELLED', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue({
+        id: 'res-1',
+        seatId: 'seat-1',
+        status: 'CANCELLED',
+      });
+
+      await expect(service.cancelReservation('res-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('deve propagar erro se a transação falhar sem alterar nada', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue({
+        id: 'res-1',
+        seatId: 'seat-1',
+        status: 'PENDING',
+      });
+      mockPrisma.$transaction.mockRejectedValue(new Error('DB explodiu'));
+
+      await expect(service.cancelReservation('res-1')).rejects.toThrow('DB explodiu');
+
+      // A transação falhou — nenhum update parcial deve ter ocorrido
+      expect(mockPrisma.seat.update).not.toHaveBeenCalled();
+      expect(mockPrisma.reservation.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cancelUnpaidReservation', () => {
     it('deve cancelar a reserva e liberar a poltrona quando status é PENDING', async () => {
       mockPrisma.reservation.findUnique.mockResolvedValue({

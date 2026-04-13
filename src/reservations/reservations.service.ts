@@ -30,6 +30,36 @@ export class ReservationsService implements OnModuleInit {
     return reservation;
   }
 
+  async cancelReservation(id: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException(`Reserva ${id} não encontrada.`);
+    }
+
+    if (reservation.status !== 'PENDING') {
+      throw new BadRequestException(
+        `Não é possível cancelar. O status atual da reserva é: ${reservation.status}`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.seat.update({
+        where: { id: reservation.seatId },
+        data: { status: 'AVAILABLE' },
+      });
+
+      await tx.reservation.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    return { message: 'Reserva cancelada com sucesso. A poltrona está disponível novamente.' };
+  }
+
   async reserveSeat(data: CreateReservationDto) {
     const lockKeys = data.seatIds.map((id) => `lock:seat:${id}`);
     const acquiredLocks = await this.redis.acquireMultipleLocks(lockKeys, 5000);

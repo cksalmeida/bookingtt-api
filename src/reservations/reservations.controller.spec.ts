@@ -5,6 +5,7 @@ import { ReservationsService } from './reservations.service';
 const mockReservationsService = {
   reserveSeat: jest.fn(),
   findOne: jest.fn(),
+  cancelReservation: jest.fn(),
 };
 
 describe('ReservationsController', () => {
@@ -67,6 +68,24 @@ describe('ReservationsController', () => {
       mockReservationsService.findOne.mockRejectedValue(new Error('Não encontrada'));
 
       await expect(controller.findOne('res-inexistente')).rejects.toThrow('Não encontrada');
+    });
+  });
+
+  describe('cancel', () => {
+    it('deve extrair o id da URL e cancelar a reserva', async () => {
+      const serviceResult = { message: 'Reserva cancelada com sucesso. A poltrona está disponível novamente.' };
+      mockReservationsService.cancelReservation.mockResolvedValue(serviceResult);
+
+      const result = await controller.cancel('res-1');
+
+      expect(mockReservationsService.cancelReservation).toHaveBeenCalledWith('res-1');
+      expect(result).toBe(serviceResult);
+    });
+
+    it('deve propagar exceções lançadas pelo service', async () => {
+      mockReservationsService.cancelReservation.mockRejectedValue(new Error('Não pode cancelar'));
+
+      await expect(controller.cancel('res-1')).rejects.toThrow('Não pode cancelar');
     });
   });
 });
