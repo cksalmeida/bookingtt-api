@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, OnModuleInit } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RabbitmqService } from '../rabbitmq/rabbitmq.service';
@@ -16,6 +16,18 @@ export class ReservationsService implements OnModuleInit {
     await this.rabbitmq.consumeExpiredReservations(async (reservationId) => {
       await this.cancelUnpaidReservation(reservationId);
     });
+  }
+
+  async findOne(id: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException(`Reserva ${id} não encontrada.`);
+    }
+
+    return reservation;
   }
 
   async reserveSeat(data: CreateReservationDto) {

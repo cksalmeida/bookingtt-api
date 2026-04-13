@@ -4,6 +4,7 @@ import { ReservationsService } from './reservations.service';
 
 const mockReservationsService = {
   reserveSeat: jest.fn(),
+  findOne: jest.fn(),
 };
 
 describe('ReservationsController', () => {
@@ -48,6 +49,24 @@ describe('ReservationsController', () => {
       mockReservationsService.reserveSeat.mockRejectedValue(new Error('Conflito'));
 
       await expect(controller.create(dto)).rejects.toThrow('Conflito');
+    });
+  });
+
+  describe('findOne', () => {
+    it('deve extrair o id da URL e retornar a reserva', async () => {
+      const serviceResult = { id: 'res-1', seatId: 'seat-1', status: 'PENDING' };
+      mockReservationsService.findOne.mockResolvedValue(serviceResult);
+
+      const result = await controller.findOne('res-1');
+
+      expect(mockReservationsService.findOne).toHaveBeenCalledWith('res-1');
+      expect(result).toBe(serviceResult);
+    });
+
+    it('deve propagar exceções lançadas pelo service', async () => {
+      mockReservationsService.findOne.mockRejectedValue(new Error('Não encontrada'));
+
+      await expect(controller.findOne('res-inexistente')).rejects.toThrow('Não encontrada');
     });
   });
 });

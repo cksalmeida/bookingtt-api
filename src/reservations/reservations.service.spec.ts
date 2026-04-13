@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -53,6 +53,34 @@ describe('ReservationsService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  // ----------------------------------------------------------------
+  // findOne
+  // ----------------------------------------------------------------
+
+  describe('findOne', () => {
+    it('deve retornar a reserva quando encontrada', async () => {
+      const fakeReservation = { id: 'res-1', seatId: 'seat-1', status: 'PENDING' };
+      mockPrisma.reservation.findUnique.mockResolvedValue(fakeReservation);
+
+      const result = await service.findOne('res-1');
+
+      expect(result).toBe(fakeReservation);
+      expect(mockPrisma.reservation.findUnique).toHaveBeenCalledWith({
+        where: { id: 'res-1' },
+      });
+    });
+
+    it('deve lançar NotFoundException quando a reserva não existe', async () => {
+      mockPrisma.reservation.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('res-inexistente')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ----------------------------------------------------------------
+  // reserveSeat
+  // ----------------------------------------------------------------
 
   describe('reserveSeat', () => {
     const dto = { userId: 'user-1', tripId: 'trip-1', seatIds: ['seat-1'] };
