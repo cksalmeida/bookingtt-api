@@ -4,6 +4,8 @@ import { TripsService } from './trips.service';
 
 const mockTripsService = {
   createTripWithSeats: jest.fn(),
+  findAll: jest.fn(),
+  findSeats: jest.fn(),
 };
 
 describe('TripsController', () => {
@@ -41,6 +43,36 @@ describe('TripsController', () => {
       mockTripsService.createTripWithSeats.mockRejectedValue(new Error('Erro ao criar viagem'));
 
       await expect(controller.create({} as any)).rejects.toThrow('Erro ao criar viagem');
+    });
+  });
+
+  describe('findAll', () => {
+    it('deve chamar findAll e retornar o resultado', async () => {
+      const serviceResult = [{ id: 'trip-1', bus: 'Leito' }];
+      mockTripsService.findAll.mockResolvedValue(serviceResult);
+
+      const result = await controller.findAll();
+
+      expect(mockTripsService.findAll).toHaveBeenCalledTimes(1);
+      expect(result).toBe(serviceResult);
+    });
+  });
+
+  describe('findSeats', () => {
+    it('deve extrair o id da URL e passar para findSeats, retornando o resultado', async () => {
+      const serviceResult = { tripId: 'trip-1', totalSeats: 40, availableSeats: 38, seats: [] };
+      mockTripsService.findSeats.mockResolvedValue(serviceResult);
+
+      const result = await controller.findSeats('trip-1');
+
+      expect(mockTripsService.findSeats).toHaveBeenCalledWith('trip-1');
+      expect(result).toBe(serviceResult);
+    });
+
+    it('deve propagar exceções lançadas pelo service', async () => {
+      mockTripsService.findSeats.mockRejectedValue(new Error('Viagem não encontrada'));
+
+      await expect(controller.findSeats('trip-inexistente')).rejects.toThrow('Viagem não encontrada');
     });
   });
 });
