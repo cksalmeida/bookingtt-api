@@ -30,6 +30,28 @@ enum ReservationStatus {
   EXPIRED
 }
 
+enum Role {
+  ADMIN
+  PASSENGER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  phone     String?
+  cpf       String?
+  role      Role     @default(PASSENGER)
+
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
 model Trip {
   id        String   @id @default(uuid())
   technicalTripId   String   
@@ -59,12 +81,13 @@ model Seat {
 
 model Reservation {
   id        String            @id @default(uuid())
-  userId    String            
-  tripId    String            
+  userId    String
+  tripId    String
   seatId    String
   status    ReservationStatus @default(PENDING)
-  expiresAt DateTime          
-  
+  expiresAt DateTime
+
+  user      User     @relation(fields: [userId], references: [id])
   seat      Seat     @relation(fields: [seatId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

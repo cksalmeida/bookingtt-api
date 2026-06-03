@@ -1,13 +1,15 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post('checkout')
   async checkout(
-    @Body() body: { reservationId: string; paymentMethod: string }
+    @Body() body: { reservationId: string; paymentMethod: string },
   ) {
     return this.paymentsService.processCheckout(body.reservationId, body.paymentMethod);
   }

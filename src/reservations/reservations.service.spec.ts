@@ -83,7 +83,8 @@ describe('ReservationsService', () => {
   // ----------------------------------------------------------------
 
   describe('reserveSeat', () => {
-    const dto = { userId: 'user-1', tripId: 'trip-1', seatIds: ['seat-1'] };
+    const userId = 'user-1';
+    const dto = { tripId: 'trip-1', seatIds: ['seat-1'] };
 
     it('deve reservar a poltrona com sucesso e retornar as reservas', async () => {
       const fakeSeat = { id: 'seat-1', number: 1, status: 'AVAILABLE' };
@@ -99,7 +100,7 @@ describe('ReservationsService', () => {
       mockPrisma.seat.update.mockResolvedValue({});
       mockRabbitmq.sendToWaitQueue.mockResolvedValue(undefined);
 
-      const result = await service.reserveSeat(dto);
+      const result = await service.reserveSeat(userId, dto);
 
       expect(result.reservations).toHaveLength(1);
       expect(result.reservations[0].reservationId).toBe('res-1');
@@ -119,7 +120,7 @@ describe('ReservationsService', () => {
     it('deve lançar ConflictException quando nenhum lock é adquirido', async () => {
       mockRedis.acquireMultipleLocks.mockResolvedValue([]);
 
-      await expect(service.reserveSeat(dto)).rejects.toThrow(ConflictException);
+      await expect(service.reserveSeat(userId, dto)).rejects.toThrow(ConflictException);
 
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
@@ -128,7 +129,7 @@ describe('ReservationsService', () => {
       mockRedis.acquireMultipleLocks.mockResolvedValue(['lock:seat:seat-1']);
       mockPrisma.seat.findUnique.mockResolvedValue(null); 
 
-      await expect(service.reserveSeat(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.reserveSeat(userId, dto)).rejects.toThrow(BadRequestException);
     });
 
     it('deve lançar ConflictException quando a poltrona já está reservada', async () => {
@@ -139,14 +140,14 @@ describe('ReservationsService', () => {
         status: 'RESERVED',
       });
 
-      await expect(service.reserveSeat(dto)).rejects.toThrow(ConflictException);
+      await expect(service.reserveSeat(userId, dto)).rejects.toThrow(ConflictException);
     });
 
     it('deve liberar os locks mesmo quando a transação lança erro', async () => {
       mockRedis.acquireMultipleLocks.mockResolvedValue(['lock:seat:seat-1']);
       mockPrisma.$transaction.mockRejectedValue(new Error('DB explodiu'));
 
-      await expect(service.reserveSeat(dto)).rejects.toThrow('DB explodiu');
+      await expect(service.reserveSeat(userId, dto)).rejects.toThrow('DB explodiu');
 
       expect(mockRedis.releaseMultipleLocks).toHaveBeenCalledWith([
         'lock:seat:seat-1',

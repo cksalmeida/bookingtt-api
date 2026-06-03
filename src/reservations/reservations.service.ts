@@ -60,7 +60,7 @@ export class ReservationsService implements OnModuleInit {
     return { message: 'Reserva cancelada com sucesso. A poltrona está disponível novamente.' };
   }
 
-  async reserveSeat(data: CreateReservationDto) {
+  async reserveSeat(userId: string, data: CreateReservationDto) {
     const lockKeys = data.seatIds.map((id) => `lock:seat:${id}`);
     const acquiredLocks = await this.redis.acquireMultipleLocks(lockKeys, 5000);
 
@@ -86,7 +86,7 @@ export class ReservationsService implements OnModuleInit {
 
           const reservation = await tx.reservation.create({
             data: {
-              userId: data.userId,
+              userId,
               tripId: data.tripId,
               seatId,
               status: 'PENDING',

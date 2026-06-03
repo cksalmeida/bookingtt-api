@@ -29,8 +29,10 @@ describe('ReservationsController', () => {
   });
 
   describe('create', () => {
-    it('deve chamar reserveSeat com o DTO recebido e retornar o resultado', async () => {
-      const dto = { userId: 'user-1', tripId: 'trip-1', seatIds: ['seat-1'] };
+    const mockReq = { user: { id: 'user-1' } } as any;
+
+    it('deve chamar reserveSeat com userId do JWT e o DTO recebido', async () => {
+      const dto = { tripId: 'trip-1', seatIds: ['seat-1'] };
       const serviceResult = {
         message: '1 poltrona(s) reservada(s) com sucesso!',
         reservations: [{ reservationId: 'res-1', seatId: 'seat-1', expiresAt: new Date() }],
@@ -38,18 +40,17 @@ describe('ReservationsController', () => {
 
       mockReservationsService.reserveSeat.mockResolvedValue(serviceResult);
 
-      const result = await controller.create(dto);
+      const result = await controller.create(mockReq, dto);
 
-      expect(mockReservationsService.reserveSeat).toHaveBeenCalledWith(dto);
-
+      expect(mockReservationsService.reserveSeat).toHaveBeenCalledWith('user-1', dto);
       expect(result).toBe(serviceResult);
     });
 
     it('deve propagar exceções lançadas pelo service', async () => {
-      const dto = { userId: 'user-1', tripId: 'trip-1', seatIds: ['seat-1'] };
+      const dto = { tripId: 'trip-1', seatIds: ['seat-1'] };
       mockReservationsService.reserveSeat.mockRejectedValue(new Error('Conflito'));
 
-      await expect(controller.create(dto)).rejects.toThrow('Conflito');
+      await expect(controller.create(mockReq, dto)).rejects.toThrow('Conflito');
     });
   });
 
